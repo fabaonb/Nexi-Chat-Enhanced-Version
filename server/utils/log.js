@@ -6,13 +6,31 @@ const AUDIT_LOG_FILE = path.join(LOG_DIR, 'audit.log');
 const CHAT_LOG_FILE = path.join(LOG_DIR, 'chat.log');
 const ERROR_LOG_FILE = path.join(LOG_DIR, 'error.log');
 
-if (!fs.existsSync(LOG_DIR)) {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
+// 检测是否在只读文件系统环境（如 Vercel）
+let isReadOnlyFS = false;
+
+try {
+    if (!fs.existsSync(LOG_DIR)) {
+        fs.mkdirSync(LOG_DIR, { recursive: true });
+    }
+    // 测试写入权限
+    const testFile = path.join(LOG_DIR, '.write-test');
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+} catch (error) {
+    isReadOnlyFS = true;
+    console.warn('⚠️  检测到只读文件系统，日志将输出到控制台');
 }
 
 function writeLog(filePath, logData) {
-    const logLine = JSON.stringify(logData) + '\n';
-    fs.appendFileSync(filePath, logLine, 'utf8');
+    if (isReadOnlyFS) {
+        // 在只读环境下输出到控制台
+        console.log(JSON.stringify(logData));
+    } else {
+        // 正常环境写入文件
+        const logLine = JSON.stringify(logData) + '\n';
+        fs.appendFileSync(filePath, logLine, 'utf8');
+    }
 }
 
 function auditLog(action, userId, details = {}) {
