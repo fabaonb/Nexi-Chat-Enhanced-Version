@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - NEXI CHAT账号</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <span></span>
+        <span></span>
+        <span></span>
+        <div class="version-info" id="versionInfo"></div>
+        <div class="login-container">
+            <!-- 图片容器 -->
+            <div class="image-container">
+                <img src="images/bg2.png" alt="Background" style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px 0 0 20px;">
+            </div>
+            
+            <!-- 注册表单 -->
+            <div class="login-box">
+                <div class="logo">
+                    <img src="images/logo.png" alt="NEXI CHAT" class="login-logo">
+                    <h2>创建NEXI CHAT账号</h2>
+                </div>
+                <form id="registerForm">
+                    <div class="form-group">
+                        <label for="username">用户名</label>
+                        <input type="text" id="username" name="username" required autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label for="nickname">社交昵称 (可选)</label>
+                        <input type="text" id="nickname" name="nickname" placeholder="默认为用户名">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">邮箱 (可选)</label>
+                        <input type="email" id="email" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">密码</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn-primary">注册</button>
+                </form>
+                <p class="register-link">已有账号？<a href="login.html">立即登录</a></p>
+                <div id="errorMessage" class="error-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        // 获取并显示版本号
+        fetch('/api/version')
+            .then(response => response.json())
+            .then(data => {
+                const versionElement = document.getElementById('versionInfo');
+                if (versionElement) {
+                    versionElement.textContent = data.version;
+                }
+            })
+            .catch(error => {
+                console.error('获取版本号失败:', error);
+            });
+    </script>
+</body>
+</html>

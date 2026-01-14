@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  nexi-chat:
+    build: .
+    container_name: nexi-chat
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - FRONTEND_PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-true}
+    volumes:
+      - ./server/data:/app/server/data
+      - ./server/logs:/app/server/logs
+      - ./server/cert:/app/server/cert
+      - ./public/uploads:/app/public/uploads
+    restart: unless-stopped
+    networks:
+      - nexi-network
+
+networks:
+  nexi-network:
+    driver: bridge

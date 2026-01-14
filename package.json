@@ -1,0 +1,56 @@
+{
+  "name": "lan-chat-website",
+  "version": "1.0.0",
+  "description": "A multi-channel LAN chat website with Apple-style design",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
+    "frontend": "node server/frontend-server.js",
+    "dev-frontend": "nodemon server/frontend-server.js",
+    "start-all": "concurrently --raw -k \"node server/server.js\" \"timeout /t 1 /nobreak >nul 2>&1 && node server/frontend-server.js\"",
+    "start-clean": "start.bat",
+    "stop": "stop.bat",
+    "install-deps": "npm install",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop ecosystem.config.js",
+    "pm2:restart": "pm2 restart ecosystem.config.js",
+    "pm2:delete": "pm2 delete ecosystem.config.js",
+    "pm2:logs": "pm2 logs",
+    "pm2:monit": "pm2 monit",
+    "docker:build": "docker build -t nexi-chat .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker logs -f nexi-chat"
+  },
+  "keywords": [
+    "chat",
+    "lan",
+    "pusher",
+    "express",
+    "responsive"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "bcryptjs": "^3.0.3",
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
+    "express-http-proxy": "^2.1.2",
+    "http-proxy": "^1.18.1",
+    "jsonwebtoken": "^9.0.0",
+    "multer": "^1.4.5-lts.1",
+    "pusher": "^5.3.2",
+    "pusher-js": "^8.4.0",
+    "sharp": "^0.32.6"
+  },
+  "devDependencies": {
+    "node-forge": "^1.3.3",
+    "nodemon": "^2.0.22",
+    "selfsigned": "^5.5.0"
+  }
+}

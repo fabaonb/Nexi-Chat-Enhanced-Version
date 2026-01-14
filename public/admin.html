@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员管理页面</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* 管理员页面样式 */
+        .admin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .admin-title {
+            font-size: 28px;
+            color: #333;
+            margin: 0;
+        }
+
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+
+        .channel-management {
+            margin-bottom: 40px;
+        }
+
+        .management-title {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .channel-card {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .channel-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .channel-icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+
+        .channel-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .members-list {
+            background-color: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .members-header {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            background-color: #e9ecef;
+            font-weight: bold;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .members-list-content {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .member-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .member-item:last-child {
+            border-bottom: none;
+        }
+
+        .member-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .member-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background-color: #007bff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .member-username {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .remove-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .remove-btn:hover {
+            background-color: #c82333;
+        }
+
+        .no-members {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 30px;
+            color: #007bff;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <!-- 管理员页面头部 -->
+        <div class="admin-header">
+            <h1 class="admin-title">💬 频道管理系统</h1>
+            <button class="logout-btn" id="logoutBtn">退出登录</button>
+        </div>
+
+        <!-- 成功/错误消息 -->
+        <div class="error-message" id="errorMessage"></div>
+        <div class="success-message" id="successMessage"></div>
+
+        <!-- 密码管理区域 -->
+        <div class="channel-management">
+            <h2 class="management-title">密码管理</h2>
+            
+            <!-- 管理员密码更改 -->
+            <div class="channel-card" style="margin-bottom: 30px;">
+                <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; color: #333;">管理员密码更改</h3>
+                <form id="adminPasswordForm">
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">当前密码:</label>
+                        <input type="password" id="currentPassword" name="currentPassword" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">新密码:</label>
+                        <input type="password" id="newPassword" name="newPassword" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">确认新密码:</label>
+                        <input type="password" id="confirmNewPassword" name="confirmNewPassword" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                    <button type="submit" style="background-color: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: background-color 0.2s;">更新密码</button>
+                </form>
+            </div>
+            
+            <!-- 频道密码更改 -->
+            <div class="channel-card">
+                <div class="channel-info" style="margin-bottom: 20px;">
+                    <span class="channel-icon">🔒</span>
+                    <span class="channel-name">105专用频道</span>
+                </div>
+                <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; color: #333;">频道密码更改</h3>
+                <form id="channelPasswordForm">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">新频道密码:</label>
+                        <input type="password" id="channelNewPassword" name="newPassword" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                    <button type="submit" style="background-color: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: background-color 0.2s;">更新频道密码</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 频道管理区域 -->
+        <div class="channel-management">
+            <h2 class="management-title">私有频道成员管理</h2>
+            
+            <!-- Channel105 管理 -->
+            <div class="channel-card">
+                <div class="channel-info">
+                    <span class="channel-icon">🔒</span>
+                    <span class="channel-name">105专用频道</span>
+                </div>
+                
+                <div class="members-list">
+                    <div class="members-header">
+                        <span>成员列表</span>
+                        <span>操作</span>
+                    </div>
+                    <div class="members-list-content" id="channel105Members"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日志管理区域 -->
+        <div class="channel-management">
+            <h2 class="management-title">日志管理</h2>
+            
+            <div class="channel-card">
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #333;">日志查询</h3>
+                    
+                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+                        <!-- 日志文件选择 -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">日志文件:</label>
+                            <select id="logFileSelect" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                                <option value="">加载中...</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 搜索框 -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">搜索:</label>
+                            <input type="text" id="logSearchInput" placeholder="搜索日志内容..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                        </div>
+                        
+                        <!-- 搜索按钮 -->
+                        <div style="display: flex; align-items: flex-end;">
+                            <button id="logSearchBtn" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: background-color 0.2s;">搜索</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 日志列表 -->
+                    <div style="background-color: white; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; padding: 15px; background-color: #e9ecef; font-weight: bold; border-bottom: 1px solid #dee2e6; font-size: 14px;">
+                            <div style="width: 15%;">时间</div>
+                            <div style="width: 10%;">类型</div>
+                            <div style="width: 15%;">用户ID</div>
+                            <div style="width: 10%;">频道</div>
+                            <div style="width: 40%;">内容</div>
+                            <div style="width: 10%;">详细</div>
+                        </div>
+                        <div id="logList" style="max-height: 500px; overflow-y: auto;">
+                            <div style="text-align: center; padding: 40px; color: #6c757d; font-style: italic;">请选择日志文件并搜索</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 分页控件 -->
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 14px; color: #6c757d;">
+                            共 <span id="logTotal">0</span> 条记录
+                        </div>
+                        <div style="display: flex; gap: 5px;">
+                            <button id="logPrevPage" style="background-color: #e9ecef; color: #333; border: 1px solid #dee2e6; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;">上一页</button>
+                            <span style="display: flex; align-items: center; padding: 0 10px; font-size: 14px;">
+                                第 <span id="logCurrentPage">1</span> / <span id="logTotalPages">1</span> 页
+                            </span>
+                            <button id="logNextPage" style="background-color: #e9ecef; color: #333; border: 1px solid #dee2e6; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;">下一页</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <a href="/index.html" class="back-link">返回聊天页面</a>
+    </div>
+
+    <script src="js/admin-management.js"></script>
+</body>
+</html>

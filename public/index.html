@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXI CHAT</title>
+    
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    
+    <style>
+        .channel-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            background-color: #f0f2f5;
+            color: #2d3748;
+            font-weight: 600;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+        .fa-loaded .channel-icon i {
+            font-size: 14px;
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            text-align: center;
+        }
+        .fa-loaded .channel-icon .fa-lock {
+            font-size: 14px;
+        }
+    </style>
+
+    <script>
+        (function() {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css';
+            link.onload = function() {
+                document.documentElement.classList.add('fa-loaded');
+                console.log('Font Awesome加载完成，已切换为图标样式');
+            };
+            link.onerror = function() {
+                console.log('Font Awesome加载失败，使用本地CSS数字样式');
+            };
+            document.head.appendChild(link);
+        })();
+    </script>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <img src="images/logo.png" alt="NEXI CHAT" class="app-title">
+                <button id="settingsBtn" class="settings-btn">⚙️</button>
+            </div>
+            
+            <div class="user-profile">
+                <div class="avatar-container">
+                    <img id="userAvatar" src="images/default.png" alt="Avatar" class="avatar">
+                </div>
+                <div class="user-info">
+                    <h3 id="username">用户</h3>
+                    <p id="userBio" class="bio">这个人很懒，什么也没留下</p>
+                </div>
+            </div>
+            
+            <div class="channels">
+                <h2 class="section-title">频道</h2>
+                <div class="channel-list">
+                    <div class="channel-item" data-channel="General">
+                        <span class="channel-icon">1<i class="fa-solid fa-1" style="display: none;"></i></span>
+                        <span class="channel-name">频道1</span>
+                    </div>
+                    <div class="channel-item" data-channel="Technology">
+                        <span class="channel-icon">2<i class="fa-solid fa-2" style="display: none;"></i></span>
+                        <span class="channel-name">频道2</span>
+                    </div>
+                    <div class="channel-item" data-channel="Gaming">
+                        <span class="channel-icon">3<i class="fa-solid fa-3" style="display: none;"></i></span>
+                        <span class="channel-name">频道3</span>
+                    </div>
+                    <div class="channel-item" data-channel="Music">
+                        <span class="channel-icon">4<i class="fa-solid fa-4" style="display: none;"></i></span>
+                        <span class="channel-name">频道4</span>
+                    </div>
+                    <div class="channel-item" data-channel="Random">
+                        <span class="channel-icon">5<i class="fa-solid fa-5" style="display: none;"></i></span>
+                        <span class="channel-name">频道5</span>
+                    </div>
+                    <div class="channel-item" data-channel="Channel105">
+                        <span class="channel-icon">🔒<i class="fa-solid fa-lock" style="display: none;"></i></span>
+                        <span class="channel-name">105专用频道</span>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="logoutBtn" class="logout-btn">退出登录</button>
+        </div>
+        
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="current-channel">
+                    <span id="currentChannelIcon" class="channel-icon"></span>
+                    <h2 id="currentChannelName">请选择频道</h2>
+                </div>
+                
+            </div>
+            
+            <div id="messagesContainer" class="messages-container">
+            </div>
+            
+            <div class="message-input-container">
+                <!-- 回复指示器 -->
+                <div id="replyIndicator" style="display: none; padding: 8px 12px; background-color: rgba(0, 113, 227, 0.1); border-left: 3px solid #0071e3; margin-bottom: 8px; border-radius: 4px; align-items: center; justify-content: space-between;">
+                    <span class="reply-to-text" style="font-size: 13px; color: #0071e3;"></span>
+                    <button id="cancelReplyBtn" style="background: none; border: none; color: #0071e3; cursor: pointer; font-size: 18px; padding: 0 4px;">✕</button>
+                </div>
+                
+                <div class="input-tools">
+                    <label for="imageUpload" class="upload-btn">🖼️</label>
+                    <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+                    <label for="fileUpload" class="upload-btn" id="fileUploadBtn" style="display: none;">📁</label>
+                    <input type="file" id="fileUpload" style="display: none;">
+                    <button id="emojiBtn" class="emoji-btn">😊</button>
+                    <div id="emojiPicker" class="emoji-picker">
+                        <div class="emoji-grid">
+                            <!-- Emoji will be dynamically populated by JavaScript -->
+                        </div>
+                    </div>
+                    <button id="voiceBtn" class="voice-btn" title="发送语音">🎤</button>
+                    <div id="uploadProgress" class="upload-progress"></div>
+                </div>
+                <textarea id="messageInput" placeholder="输入消息..." autocomplete="off" rows="1"></textarea>
+                <button id="sendBtn" class="send-btn">发送</button>
+            </div>
+        </div>
+        
+        <div id="settingsPanel" class="settings-panel">
+            <div class="settings-header">
+                <h2>个人设置</h2>
+                <button id="closeSettings" class="close-btn">✕</button>
+            </div>
+            
+            <div class="settings-content">
+                <div class="settings-section">
+                    <h3>头像设置</h3>
+                    <div class="avatar-upload">
+                        <div class="avatar-preview">
+                            <img id="avatarPreview" src="images/default.png" alt="Avatar" class="avatar">
+                        </div>
+                        <label for="avatarInput" class="btn-secondary">上传头像</label>
+                        <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>个人信息</h3>
+                    <div class="form-group">
+                        <label for="settingsUsername">用户名</label>
+                        <input type="text" id="settingsUsername" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsNickname">社交昵称</label>
+                        <input type="text" id="settingsNickname" placeholder="显示给其他用户的名字">
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsBio">个性签名</label>
+                        <textarea id="settingsBio" rows="3" placeholder="介绍一下自己吧..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsGender">性别</label>
+                        <select id="settingsGender">
+                            <option value="male">男</option>
+                            <option value="female">女</option>
+                            <option value="other">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingsEmail">邮箱</label>
+                        <input type="email" id="settingsEmail" placeholder="请输入邮箱">
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>消息通知设置</h3>
+                    <div class="form-group">
+                        <label for="notificationSound">提示音开关</label>
+                        <div class="toggle-switch-container">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="notificationSound">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>接收通知的频道</label>
+                        <div class="channel-notification-settings">
+                        <div class="channel-notification-item">
+                            <label class="channel-toggle-container">
+                                <span class="channel-toggle-name">频道1</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notifyChannelGeneral" value="General" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+                        </div>
+                        <div class="channel-notification-item">
+                            <label class="channel-toggle-container">
+                                <span class="channel-toggle-name">频道2</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notifyChannelTechnology" value="Technology" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+                        </div>
+                        <div class="channel-notification-item">
+                            <label class="channel-toggle-container">
+                                <span class="channel-toggle-name">频道3</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notifyChannelGaming" value="Gaming" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+                        </div>
+                        <div class="channel-notification-item">
+                            <label class="channel-toggle-container">
+                                <span class="channel-toggle-name">频道4</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notifyChannelMusic" value="Music" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+                        </div>
+                        <div class="channel-notification-item">
+                            <label class="channel-toggle-container">
+                                <span class="channel-toggle-name">频道5</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notifyChannelRandom" value="Random" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+                        </div>
+                        <div class="channel-notification-item">
+                            <label class="channel-toggle-container">
+                                <span class="channel-toggle-name">105专用频道</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notifyChannel105" value="Channel105" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </label>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>安全设置</h3>
+                    <div class="security-actions">
+                        <button id="changePasswordBtn" class="btn-secondary">更改密码</button>
+                    </div>
+                </div>
+                
+                <!-- 屏蔽词管理功能已移除，不向普通用户开放 -->
+                
+                <div class="settings-actions">
+                    <button id="saveSettings" class="btn-primary">保存设置</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="passwordChangePanel" class="settings-panel">
+            <div class="settings-header">
+                <h2>更改密码</h2>
+                <button id="closePasswordPanel" class="close-btn">✕</button>
+            </div>
+            <div class="settings-content">
+                <div class="settings-section">
+                    <form id="passwordChangeForm">
+                        <div class="form-group">
+                            <label for="currentPassword">当前密码</label>
+                            <input type="password" id="currentPassword" placeholder="请输入当前密码" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newPassword">新密码</label>
+                            <input type="password" id="newPassword" placeholder="请输入新密码" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">确认新密码</label>
+                            <input type="password" id="confirmPassword" placeholder="请再次输入新密码" required>
+                        </div>
+                        <div class="settings-actions">
+                            <button type="submit" class="btn-primary">确认更改</button>
+                            <button type="button" id="cancelPasswordChange" class="btn-secondary">取消</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 通知提示容器 -->
+        <div id="notificationContainer" class="notification-container"></div>
+        
+        <div id="userProfileModal" class="profile-modal">
+            <div class="profile-content">
+                <div class="profile-header">
+                    <h2>用户资料</h2>
+                    <button id="closeProfileModal" class="close-btn">✕</button>
+                </div>
+                <div class="profile-info">
+                    <div class="avatar-container">
+                        <img id="profileAvatar" src="images/default.png" alt="Avatar" class="avatar">
+                    </div>
+                    <h3 id="profileUsername">社交昵称</h3>
+                    <p id="profileBio">个性签名</p>
+                    <p id="profileGender">性别</p>
+                    <p id="profileEmail">邮箱</p>
+                    <p id="profileJoined">加入时间</p>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Pusher 客户端库 -->
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/chat-pusher.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.documentElement.classList.contains('fa-loaded')) {
+                switchToFAIcons();
+            } else {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.attributeName === 'class' && document.documentElement.classList.contains('fa-loaded')) {
+                            switchToFAIcons();
+                            observer.disconnect();
+                        }
+                    });
+                });
+                observer.observe(document.documentElement, { attributes: true });
+            }
+
+            function switchToFAIcons() {
+                const channelIcons = document.querySelectorAll('.channel-icon');
+                channelIcons.forEach(icon => {
+                    icon.style.fontSize = '0';
+                    const faIcon = icon.querySelector('i');
+                    if (faIcon) {
+                        faIcon.style.display = 'inline-block';
+                        faIcon.style.fontSize = '14px';
+                    }
+                });
+            }
+
+            document.querySelectorAll('.channel-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const channelNum = this.querySelector('.channel-name').textContent.replace('频道', '');
+                    const iconEl = document.getElementById('currentChannelIcon');
+                    iconEl.innerHTML = `${channelNum}<i class="fa-solid fa-${channelNum}" style="display: none;"></i>`;
+                    if (document.documentElement.classList.contains('fa-loaded')) {
+                        iconEl.style.fontSize = '0';
+                        iconEl.querySelector('i').style.display = 'inline-block';
+                        iconEl.querySelector('i').style.fontSize = '14px';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

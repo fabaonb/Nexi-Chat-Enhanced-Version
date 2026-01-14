@@ -1,0 +1,48 @@
+# NEXI CHAT - systemd 服务文件示例
+# 适用于 Linux 系统的生产环境部署
+
+[Unit]
+Description=NEXI CHAT - Multi-channel LAN Chat System
+Documentation=https://github.com/qq3129009939-crypto/NEXI-CHAT
+After=network.target
+
+[Service]
+Type=simple
+User=your-username
+Group=your-group
+WorkingDirectory=/path/to/NEXI-CHAT
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+Environment="FRONTEND_PORT=3001"
+ExecStart=/usr/bin/npm run start-all
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=nexi-chat
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/path/to/NEXI-CHAT/server/data
+ReadWritePaths=/path/to/NEXI-CHAT/server/logs
+ReadWritePaths=/path/to/NEXI-CHAT/public/uploads
+
+# 资源限制
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
+
+# 使用说明：
+# 1. 复制此文件到 /etc/systemd/system/nexi-chat.service
+# 2. 修改 User、Group 和 WorkingDirectory 为实际值
+# 3. 修改 ReadWritePaths 为实际路径
+# 4. 重新加载 systemd: sudo systemctl daemon-reload
+# 5. 启用服务: sudo systemctl enable nexi-chat
+# 6. 启动服务: sudo systemctl start nexi-chat
+# 7. 查看状态: sudo systemctl status nexi-chat
+# 8. 查看日志: sudo journalctl -u nexi-chat -f

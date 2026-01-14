@@ -1,0 +1,2 @@
+# 此文件用于保持目录结构
+# SSL 证书需要通过 npm run generate-cert 生成
