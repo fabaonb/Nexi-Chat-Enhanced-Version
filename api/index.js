@@ -13,6 +13,15 @@ const db = require('../server/utils/db-adapter');
 const logger = require('../server/utils/log');
 const badWordsFilter = require('../server/utils/badwords');
 const pusher = require('../server/config/pusher');
+const xssProtection = require('../server/utils/xss-protection');
+const securityMiddleware = require('../server/utils/security-middleware');
+const advancedSecurity = require('../server/utils/advanced-security');
+const ddosProtection = require('../server/utils/ddos-protection');
+const dataProtection = require('../server/utils/data-protection');
+const stealthProtection = require('../server/utils/stealth-protection');
+const payloadScanner = require('../server/utils/payload-scanner');
+const botDetection = require('../server/utils/bot-detection');
+const geoProtection = require('../server/utils/geo-protection');
 
 const app = express();
 
@@ -24,13 +33,38 @@ const REGISTRATION_ENABLED = config.REGISTRATION_ENABLED;
 const VERSION = config.VERSION;
 const ADMIN_CREDENTIALS = config.ADMIN_CREDENTIALS;
 
+// 安全中间件（按优先级顺序）
+app.use(stealthProtection.stealthProtectionMiddleware);
+app.use(payloadScanner.payloadScanMiddleware);
+app.use(botDetection.botDetectionMiddleware);
+app.use(geoProtection.geoProtectionMiddleware);
+app.use(ddosProtection.ddosProtectionMiddleware);
+app.use(ddosProtection.connectionLimitMiddleware);
+app.use(advancedSecurity.advancedSecurityMiddleware);
+app.use(dataProtection.dataProtectionMiddleware);
+
 app.use(cors({
     origin: config.CORS_ORIGINS,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// 请求大小限制
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 综合安全防护
+app.use(securityMiddleware.ipBlacklistCheck);
+app.use(securityMiddleware.userAgentValidation);
+app.use(securityMiddleware.requestSizeLimit);
+app.use(securityMiddleware.hppProtection);
+app.use(securityMiddleware.sqlInjectionProtection);
+app.use(securityMiddleware.noSqlInjectionProtection);
+app.use(securityMiddleware.pathTraversalProtection);
+app.use(securityMiddleware.commandInjectionProtection);
+
+// API 速率限制
+app.use('/api/', securityMiddleware.apiLimiter);
 
 // 认证中间件
 const authenticateUser = (req, res, next) => {

@@ -7,10 +7,23 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const sharp = require('sharp');
 const fs = require('fs');
+const helmet = require('helmet');
+const { body, validationResult } = require('express-validator');
 const db = require('./utils/db-adapter'); // 使用数据库适配器
 const logger = require('./utils/log');
 const badWordsFilter = require('./utils/badwords');
 const pusher = require('./config/pusher'); // 引入 Pusher
+const xssProtection = require('./utils/xss-protection'); // XSS 防护
+const securityMiddleware = require('./utils/security-middleware'); // 综合安全中间件
+const supabaseSecurity = require('./utils/supabase-security'); // Supabase 安全
+const vercelSecurity = require('./utils/vercel-security'); // Vercel 安全
+const advancedSecurity = require('./utils/advanced-security'); // 高级安全
+const ddosProtection = require('./utils/ddos-protection'); // DDoS 防护
+const dataProtection = require('./utils/data-protection'); // 数据保护
+const stealthProtection = require('./utils/stealth-protection'); // 隐蔽防护
+const payloadScanner = require('./utils/payload-scanner'); // 载荷扫描
+const botDetection = require('./utils/bot-detection'); // 机器人检测
+const geoProtection = require('./utils/geo-protection'); // 地理位置防护
 
 const app = express();
 const sslOptions = {
@@ -21,6 +34,11 @@ const server = https.createServer(sslOptions, app);
 
 // 从环境变量或配置文件读取所有敏感配置
 const config = require('./config/config');
+
+// 启动时检查安全配置
+const { SecurityConfigHelper } = require('./utils/security-config');
+SecurityConfigHelper.checkAndWarn();
+
 const PORT = config.PORT;
 const JWT_SECRET = config.JWT_SECRET;
 const CHANNELS = config.CHANNELS;
@@ -33,9 +51,76 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
 }));
+
+// 使用 Helmet 增强安全性
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.pusher.com", "https://cdnjs.cloudflare.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+            imgSrc: ["'self'", "data:", "https:"],
+            fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
+            connectSrc: ["'self'", "https:", "wss:"],
+            mediaSrc: ["'self'"]
+        }
+    },
+    xssFilter: true,
+    noSniff: true,
+    frameguard: { action: 'sameorigin' }
+}));
+
+// 应用 XSS 防护中间件
+app.use(xssProtection.setSecurityHeaders);
+
+// 隐蔽防护层（最高优先级）
+app.use(stealthProtection.stealthProtectionMiddleware);
+app.use(payloadScanner.payloadScanMiddleware);
+app.use(botDetection.botDetectionMiddleware);
+app.use(geoProtection.geoProtectionMiddleware);
+
+// DDoS 防护
+app.use(ddosProtection.ddosProtectionMiddleware);
+app.use(ddosProtection.connectionLimitMiddleware);
+app.use(ddosProtection.slowlorisProtection.middleware());
+
+// 高级安全防护
+app.use(advancedSecurity.advancedSecurityMiddleware);
+
+// 数据保护
+app.use(dataProtection.dataProtectionMiddleware);
+
+// Vercel 环境安全中间件
+if (vercelSecurity.isVercelEnvironment()) {
+    app.use(vercelSecurity.vercelRequestValidation);
+    app.use(vercelSecurity.vercelEdgeOptimization);
+    const memoryMonitor = new vercelSecurity.VercelMemoryMonitor();
+    app.use(memoryMonitor.middleware());
+}
+
+// Supabase 数据库安全中间件
+if (config.DB_TYPE === 'supabase') {
+    app.use(supabaseSecurity.supabaseValidationMiddleware);
+    app.use(supabaseSecurity.supabaseConnectionLimitMiddleware);
+    app.use(supabaseSecurity.supabaseAuditMiddleware);
+}
+
+// 应用综合安全中间件
+app.use(securityMiddleware.ipBlacklistCheck); // IP 黑名单检查
+app.use(securityMiddleware.userAgentValidation); // User-Agent 验证
+app.use(securityMiddleware.requestSizeLimit); // 请求大小限制
+app.use(securityMiddleware.hppProtection); // HTTP 参数污染防护
+app.use(securityMiddleware.sqlInjectionProtection); // SQL 注入防护
+app.use(securityMiddleware.noSqlInjectionProtection); // NoSQL 注入防护
+app.use(securityMiddleware.pathTraversalProtection); // 路径遍历防护
+app.use(securityMiddleware.commandInjectionProtection); // 命令注入防护
+
+// 通用 API 速率限制
+app.use('/api/', securityMiddleware.apiLimiter);
+
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb', parameterLimit: 1000000 }));
-const authenticateUser = (req, res, next) => {
+const authenticateUser = async (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
         next();
@@ -43,9 +128,17 @@ const authenticateUser = (req, res, next) => {
     }
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
+        // 验证用户是否仍然存在于数据库中
+        const user = await db.getUserById(decoded.userId);
+        if (!user) {
+            return res.status(401).json({ error: 'User not found', code: 'USER_NOT_FOUND' });
+        }
         req.userId = decoded.userId;
         next();
     } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
+        }
         next();
     }
 };
@@ -134,12 +227,28 @@ app.get('/api/channel/:channel/access/:userId', async (req, res) => {
     const hasAccess = await db.isChannelMember(channel, parseInt(userId));
     return res.json({ hasAccess });
 });
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', [
+    securityMiddleware.registerLimiter, // 注册速率限制
+    body('username').trim().isLength({ min: 3, max: 20 }).matches(/^[\w\u4e00-\u9fa5]+$/),
+    body('password').isLength({ min: 6, max: 50 }),
+    body('email').optional().isEmail().normalizeEmail(),
+    body('nickname').optional().trim().isLength({ max: 30 })
+], async (req, res) => {
     if (!REGISTRATION_ENABLED) {
         return res.status(403).json({ error: '注册功能已关闭' });
     }
     
-    const { username, password, email, nickname } = req.body;
+    // 验证输入
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: '输入格式不正确' });
+    }
+    
+    // XSS 清理
+    const username = xssProtection.sanitizeUsername(req.body.username);
+    const password = req.body.password;
+    const email = req.body.email ? xssProtection.sanitizeEmail(req.body.email) : null;
+    const nickname = req.body.nickname ? xssProtection.sanitizeText(req.body.nickname) : null;
     
     // 调试日志
     if (!SILENT_MODE) {
@@ -187,8 +296,20 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
+app.post('/api/login', [
+    securityMiddleware.loginLimiter, // 登录速率限制
+    body('username').trim().notEmpty(),
+    body('password').notEmpty()
+], async (req, res) => {
+    // 验证输入
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: 'Username and password are required' });
+    }
+    
+    // XSS 清理
+    const username = xssProtection.sanitizeUsername(req.body.username);
+    const password = req.body.password;
     
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password are required' });
@@ -215,7 +336,9 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', [
+    securityMiddleware.loginLimiter, // 管理员登录速率限制
+], async (req, res) => {
     const { username, password } = req.body;
     
     if (!username || !password) {
@@ -315,9 +438,26 @@ app.get('/api/profile/:userId', async (req, res) => {
     
     res.json(userProfile);
 });
-app.put('/api/profile/:userId', async (req, res) => {
+app.put('/api/profile/:userId', [
+    body('bio').optional().trim().isLength({ max: 200 }),
+    body('gender').optional().isIn(['male', 'female', 'other']),
+    body('email').optional().isEmail().normalizeEmail(),
+    body('nickname').optional().trim().isLength({ max: 30 })
+], async (req, res) => {
     const { userId } = req.params;
-    const { bio, gender, email, nickname } = req.body;
+    
+    // 验证输入
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: '输入格式不正确' });
+    }
+    
+    // XSS 清理
+    const bio = req.body.bio ? xssProtection.sanitizeText(req.body.bio) : null;
+    const gender = req.body.gender;
+    const email = req.body.email ? xssProtection.sanitizeEmail(req.body.email) : null;
+    const nickname = req.body.nickname ? xssProtection.sanitizeText(req.body.nickname) : null;
+    
     if (email) {
         const existingUser = await db.getUserByEmail(email);
         if (existingUser && existingUser.id != userId) {
@@ -370,6 +510,19 @@ app.post('/api/upload/avatar', upload.single('avatar'), async (req, res) => {
     }
     
     try {
+        // 文件安全验证
+        const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedMimeTypes.includes(req.file.mimetype)) {
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: '不支持的图片格式' });
+        }
+        
+        // 检查文件大小
+        if (req.file.size > 5 * 1024 * 1024) { // 5MB
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: '图片大小不能超过 5MB' });
+        }
+        
         const originalExt = path.extname(req.file.originalname).toLowerCase();
         const isGif = originalExt === '.gif';
         
@@ -394,17 +547,36 @@ app.post('/api/upload/avatar', upload.single('avatar'), async (req, res) => {
         
         res.json({ success: true, avatar: avatarUrl });
     } catch (error) {
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
         res.status(500).json({ error: 'Image processing error' });
     }
 });
 
-app.post('/api/upload/image', upload.single('image'), async (req, res) => {
+app.post('/api/upload/image', [
+    securityMiddleware.uploadLimiter, // 上传速率限制
+    upload.single('image')
+], async (req, res) => {
     if (!req.file) {
         if (!SILENT_MODE) console.error('上传失败: 未提供文件');
         return res.status(400).json({ error: 'File is required' });
     }
     
     try {
+        // 文件安全验证
+        const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedMimeTypes.includes(req.file.mimetype)) {
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: '不支持的图片格式' });
+        }
+        
+        // 检查文件大小
+        if (req.file.size > 10 * 1024 * 1024) { // 10MB
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: '图片大小不能超过 10MB' });
+        }
+        
         const originalExt = path.extname(req.file.originalname).toLowerCase();
         const isGif = originalExt === '.gif';
         
@@ -432,6 +604,9 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
         res.json({ success: true, image: imageUrl });
     } catch (error) {
         if (!SILENT_MODE) console.error('上传失败:', error);
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
         if (error.code === 'LIMIT_FILE_SIZE') {
             res.status(413).json({ error: 'File size exceeds limit (10MB)' });
         } else {
@@ -440,7 +615,10 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
     }
 });
 
-app.get('/api/admin/logs/list', authenticateAdmin, (req, res) => {
+app.get('/api/admin/logs/list', [
+    securityMiddleware.adminLimiter, // 管理员操作限制
+    authenticateAdmin
+], (req, res) => {
     const fs = require('fs');
     const path = require('path');
     
@@ -467,7 +645,10 @@ app.get('/api/admin/logs/list', authenticateAdmin, (req, res) => {
     }
 });
 
-app.get('/api/admin/logs/content/:filename', authenticateAdmin, (req, res) => {
+app.get('/api/admin/logs/content/:filename', [
+    securityMiddleware.adminLimiter, // 管理员操作限制
+    authenticateAdmin
+], (req, res) => {
     const fs = require('fs');
     const path = require('path');
     
@@ -516,13 +697,29 @@ app.get('/api/admin/logs/content/:filename', authenticateAdmin, (req, res) => {
     }
 });
 
-app.post('/api/upload/voice', upload.single('voice'), async (req, res) => {
+app.post('/api/upload/voice', [
+    securityMiddleware.uploadLimiter, // 上传速率限制
+    upload.single('voice')
+], async (req, res) => {
     if (!req.file) {
         if (!SILENT_MODE) console.error('语音上传失败: 未提供文件');
         return res.status(400).json({ error: 'File is required' });
     }
     
     try {
+        // 文件安全验证
+        const allowedMimeTypes = ['audio/webm', 'audio/ogg', 'audio/wav', 'audio/mpeg'];
+        if (!allowedMimeTypes.includes(req.file.mimetype)) {
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: '不支持的音频格式' });
+        }
+        
+        // 检查文件大小
+        if (req.file.size > 10 * 1024 * 1024) { // 10MB
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: '音频大小不能超过 10MB' });
+        }
+        
         const originalExt = path.extname(req.file.originalname).toLowerCase();
         
         const voicePath = path.join(__dirname, '..', 'public', 'uploads', 'voice-' + req.file.filename);
@@ -533,6 +730,9 @@ app.post('/api/upload/voice', upload.single('voice'), async (req, res) => {
         res.json({ success: true, voice: voiceUrl });
     } catch (error) {
         if (!SILENT_MODE) console.error('语音上传失败:', error);
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
         if (error.code === 'LIMIT_FILE_SIZE') {
             res.status(413).json({ error: 'File size exceeds limit (10MB)' });
         } else {
@@ -543,6 +743,7 @@ app.post('/api/upload/voice', upload.single('voice'), async (req, res) => {
 
 app.get('/api/messages/:channel', authenticateUser, async (req, res) => {
     const { channel } = req.params;
+    const { limit = 100 } = req.query; // 默认只加载最近 100 条消息
     
     if (!CHANNELS.includes(channel)) {
         return res.status(400).json({ error: 'Invalid channel' });
@@ -558,8 +759,19 @@ app.get('/api/messages/:channel', authenticateUser, async (req, res) => {
         messages = messages.filter(msg => !msg.is_blocked);
     }
     
+    // 只返回最近的消息
+    messages = messages.slice(-parseInt(limit));
+    
+    // 用户信息缓存
+    const userCache = new Map();
+    
     const messagesWithUserInfo = await Promise.all(messages.map(async msg => {
-        const user = await db.getUserById(msg.user_id);
+        // 使用缓存避免重复查询
+        let user = userCache.get(msg.user_id);
+        if (!user) {
+            user = await db.getUserById(msg.user_id);
+            if (user) userCache.set(msg.user_id, user);
+        }
         
         const messageData = {
             ...msg,
@@ -572,7 +784,11 @@ app.get('/api/messages/:channel', authenticateUser, async (req, res) => {
         if (msg.reply_to) {
             const repliedMessage = await db.getMessageById(msg.reply_to);
             if (repliedMessage) {
-                const repliedUser = await db.getUserById(repliedMessage.user_id);
+                let repliedUser = userCache.get(repliedMessage.user_id);
+                if (!repliedUser) {
+                    repliedUser = await db.getUserById(repliedMessage.user_id);
+                    if (repliedUser) userCache.set(repliedMessage.user_id, repliedUser);
+                }
                 messageData.reply_info = {
                     message_id: repliedMessage.id,
                     username: repliedUser?.username || 'Unknown',
@@ -628,9 +844,23 @@ app.get('/api/pusher/config', (req, res) => {
 });
 
 // 发送消息 API（替代 Socket.IO 的 sendMessage 事件）
-app.post('/api/pusher/send-message', authenticateUser, async (req, res) => {
+app.post('/api/pusher/send-message', [
+    securityMiddleware.messageLimiter, // 消息速率限制
+    authenticateUser,
+    body('content').optional().trim().isLength({ max: 5000 }),
+    body('channel').notEmpty().isIn(CHANNELS)
+], async (req, res) => {
     try {
-        const { userId, channel, content, image, voice, reply_to } = req.body;
+        // 验证输入
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ error: '输入格式不正确' });
+        }
+        
+        const { userId, channel, image, voice, reply_to } = req.body;
+        
+        // XSS 清理内容
+        const content = req.body.content ? xssProtection.sanitizeText(req.body.content) : null;
         
         const containsBadWords = badWordsFilter.containsBadWords(content);
         
@@ -870,6 +1100,14 @@ server.listen(PORT, '0.0.0.0', async () => {
 });
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// 全局错误处理中间件（必须放在所有路由之后）
+app.use(securityMiddleware.sanitizeErrorResponse);
+
+// 404 处理
+app.use((req, res) => {
+    res.status(404).json({ error: '请求的资源不存在' });
+});
 
 process.on('SIGINT', () => {
     if (!SILENT_MODE) console.log('\n正在停止后端服务...');

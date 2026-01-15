@@ -75,15 +75,21 @@ function renderMembers(members, container, channel) {
         return;
     }
     
-    container.innerHTML = members.map(member => `
+    container.innerHTML = members.map(member => {
+        // 使用 XSS 防护清理用户数据
+        const safeUsername = escapeHtml(member.username);
+        const safeInitial = escapeHtml(member.username.charAt(0).toUpperCase());
+        
+        return `
         <div class="member-item" data-user-id="${member.id}">
             <div class="member-info">
-                <div class="member-avatar">${member.username.charAt(0).toUpperCase()}</div>
-                <span class="member-username">${member.username}</span>
+                <div class="member-avatar">${safeInitial}</div>
+                <span class="member-username">${safeUsername}</span>
             </div>
-            <button class="remove-btn" onclick="removeMember(${member.id}, '${channel}')">移除</button>
+            <button class="remove-btn" onclick="removeMember(${member.id}, '${escapeHtml(channel)}')">移除</button>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 
@@ -361,14 +367,12 @@ function renderLogList(logs) {
     }
     
     logList.innerHTML = logs.map(log => {
+        // 使用 XSS 防护清理日志数据
+        const time = escapeHtml(new Date(log.timestamp).toLocaleString('zh-CN'));
         
-        const time = new Date(log.timestamp).toLocaleString('zh-CN');
-        
-        
-        const logType = log.type || 'unknown';
-        const userId = log.userId || '-';
-        const channel = log.channel || '-';
-        
+        const logType = escapeHtml(log.type || 'unknown');
+        const userId = escapeHtml(log.userId || '-');
+        const channel = escapeHtml(log.channel || '-');
         
         let content = '';
         if (logType === 'chat') {
@@ -382,11 +386,12 @@ function renderLogList(logs) {
             content = log.message || log.content || '';
         }
         
+        // 清理和截断内容
+        const safeContent = escapeHtml(content);
+        const truncatedContent = safeContent.length > 100 ? safeContent.substring(0, 100) + '...' : safeContent;
         
-        const truncatedContent = content.length > 100 ? content.substring(0, 100) + '...' : content;
-        
-        
-        const details = JSON.stringify(log, null, 2);
+        // 清理详细信息
+        const details = escapeHtml(JSON.stringify(log, null, 2));
         
         return `
             <div style="display: flex; justify-content: space-between; padding: 10px 15px; border-bottom: 1px solid #dee2e6; font-size: 14px; align-items: flex-start;">
@@ -396,7 +401,7 @@ function renderLogList(logs) {
                 <div style="width: 10%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${channel}</div>
                 <div style="width: 40%; overflow: hidden; text-overflow: ellipsis; word-break: break-all;">${truncatedContent}</div>
                 <div style="width: 10%; text-align: center;">
-                    <button onclick="showLogDetails(${JSON.stringify(details).replace(/"/g, '&quot;')})" style="background: none; border: none; color: #007bff; cursor: pointer; font-size: 12px; padding: 0;">
+                    <button onclick="showLogDetails('${details.replace(/'/g, "\\'")}')" style="background: none; border: none; color: #007bff; cursor: pointer; font-size: 12px; padding: 0;">
                         查看
                     </button>
                 </div>

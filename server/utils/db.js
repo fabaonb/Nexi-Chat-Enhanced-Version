@@ -53,10 +53,39 @@ function loadData() {
     return { usersData, messagesData, channelsData };
 }
 
+// 防抖保存 - 避免频繁写入文件
+let saveTimeout = null;
+const SAVE_DELAY = 500; // 500ms 延迟
+
 function saveData() {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
-    fs.writeFileSync(CHANNELS_FILE, JSON.stringify(channels, null, 2));
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+    }
+    
+    saveTimeout = setTimeout(() => {
+        try {
+            fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+            fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
+            fs.writeFileSync(CHANNELS_FILE, JSON.stringify(channels, null, 2));
+        } catch (error) {
+            console.error('保存数据失败:', error);
+        }
+    }, SAVE_DELAY);
+}
+
+// 立即保存（用于关键操作）
+function saveDataImmediate() {
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        saveTimeout = null;
+    }
+    try {
+        fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+        fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
+        fs.writeFileSync(CHANNELS_FILE, JSON.stringify(channels, null, 2));
+    } catch (error) {
+        console.error('保存数据失败:', error);
+    }
 }
 
 let users, messages, channels;
@@ -66,19 +95,19 @@ messages = messagesData;
 channels = channelsData;
 
 // 用户操作（改为异步以匹配 Supabase 接口）
-async function getUserById(id) {
+function getUserById(id) {
     return users.find(user => user.id === parseInt(id));
 }
 
-async function getUserByUsername(username) {
+function getUserByUsername(username) {
     return users.find(user => user.username === username);
 }
 
-async function getUserByEmail(email) {
+function getUserByEmail(email) {
     return users.find(user => user.email === email);
 }
 
-async function insertUser(userData) {
+function insertUser(userData) {
     const newUser = {
         id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
         username: userData.username,
@@ -91,30 +120,30 @@ async function insertUser(userData) {
         created_at: new Date().toISOString()
     };
     users.push(newUser);
-    saveData();
+    saveDataImmediate(); // 用户注册立即保存
     return newUser;
 }
 
-async function updateUser(id, userData) {
+function updateUser(id, userData) {
     const userId = parseInt(id);
     const userIndex = users.findIndex(user => user.id === userId);
     if (userIndex === -1) return null;
     
     users[userIndex] = { ...users[userIndex], ...userData };
-    saveData();
+    saveData(); // 用户更新延迟保存
     return users[userIndex];
 }
 
 // 消息操作（改为异步）
-async function getMessagesByChannel(channel) {
+function getMessagesByChannel(channel) {
     return messages.filter(msg => msg.channel === channel);
 }
 
-async function getMessageById(id) {
+function getMessageById(id) {
     return messages.find(msg => msg.id === parseInt(id));
 }
 
-async function insertMessage(messageData) {
+function insertMessage(messageData) {
     const newMessage = {
         id: messages.length > 0 ? Math.max(...messages.map(m => m.id)) + 1 : 1,
         user_id: messageData.user_id,
@@ -130,11 +159,11 @@ async function insertMessage(messageData) {
         created_at: new Date().toISOString()
     };
     messages.push(newMessage);
-    saveData();
+    saveData(); // 消息延迟保存
     return newMessage;
 }
 
-async function updateMessage(id, messageData) {
+function updateMessage(id, messageData) {
     const messageId = parseInt(id);
     const messageIndex = messages.findIndex(msg => msg.id === messageId);
     if (messageIndex === -1) return null;
@@ -145,22 +174,22 @@ async function updateMessage(id, messageData) {
     }
     
     messages[messageIndex] = { ...messages[messageIndex], ...messageData };
-    saveData();
+    saveData(); // 消息更新延迟保存
     return messages[messageIndex];
 }
 
-async function deleteMessage(id) {
+function deleteMessage(id) {
     const messageId = parseInt(id);
     const messageIndex = messages.findIndex(msg => msg.id === messageId);
     if (messageIndex === -1) return false;
     
     messages.splice(messageIndex, 1);
-    saveData();
+    saveData(); // 消息删除延迟保存
     return true;
 }
 
 // 频道操作（新增以匹配 Supabase 接口）
-async function getChannelByName(name) {
+function getChannelByName(name) {
     if (!channels[name]) return null;
     return {
         name: name,
@@ -168,39 +197,39 @@ async function getChannelByName(name) {
     };
 }
 
-async function getChannelMembers(channelName) {
+function getChannelMembers(channelName) {
     if (!channels[channelName]) return [];
     return channels[channelName].members || [];
 }
 
-async function addChannelMember(channelName, userId) {
+function addChannelMember(channelName, userId) {
     if (!channels[channelName]) return false;
     if (!channels[channelName].members.includes(parseInt(userId))) {
         channels[channelName].members.push(parseInt(userId));
-        saveData();
+        saveData(); // 频道成员延迟保存
     }
     return true;
 }
 
-async function removeChannelMember(channelName, userId) {
+function removeChannelMember(channelName, userId) {
     if (!channels[channelName]) return false;
     const memberIndex = channels[channelName].members.indexOf(parseInt(userId));
     if (memberIndex !== -1) {
         channels[channelName].members.splice(memberIndex, 1);
-        saveData();
+        saveData(); // 频道成员延迟保存
     }
     return true;
 }
 
-async function isChannelMember(channelName, userId) {
+function isChannelMember(channelName, userId) {
     if (!channels[channelName]) return false;
     return channels[channelName].members.includes(parseInt(userId));
 }
 
-async function updateChannelPassword(channelName, newPassword) {
+function updateChannelPassword(channelName, newPassword) {
     if (!channels[channelName]) return false;
     channels[channelName].password = newPassword;
-    saveData();
+    saveDataImmediate(); // 密码修改立即保存
     return true;
 }
 
@@ -228,5 +257,17 @@ module.exports = {
     updateChannelPassword,
     
     // 保留旧接口（向后兼容）
-    saveData
+    saveData,
+    saveDataImmediate
 };
+
+// 进程退出时立即保存
+process.on('SIGINT', () => {
+    saveDataImmediate();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    saveDataImmediate();
+    process.exit(0);
+});

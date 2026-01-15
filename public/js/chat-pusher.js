@@ -37,7 +37,15 @@ async function initializePusher() {
 
         pusher.connection.bind('error', (error) => {
             console.error('Pusher 连接错误:', error);
-            showNotification('连接服务器时出错', 'error');
+            // 检查是否是认证错误
+            if (error.error && error.error.data && error.error.data.code === 401) {
+                showNotification('登录已失效，请重新登录', 'error');
+                setTimeout(() => {
+                    logout();
+                }, 2000);
+            } else {
+                showNotification('连接服务器时出错', 'error');
+            }
         });
 
         pusher.connection.bind('state_change', (states) => {
@@ -319,6 +327,14 @@ async function sendMessageViaPusher(messageData) {
         const result = await response.json();
         
         if (!response.ok) {
+            // 检查是否是认证错误
+            if (response.status === 401 && (result.code === 'USER_NOT_FOUND' || result.code === 'INVALID_TOKEN')) {
+                showNotification('登录已失效，请重新登录', 'error');
+                setTimeout(() => {
+                    logout();
+                }, 2000);
+                return;
+            }
             throw new Error(result.error || '发送消息失败');
         }
         
@@ -700,7 +716,10 @@ function initPage() {
     
     updateUserInfo();
     
-    preloadAudioAndRequestPermission();
+    // 延迟加载音频和权限请求
+    setTimeout(() => {
+        preloadAudioAndRequestPermission();
+    }, 1000);
     
     messagesContainer.innerHTML = `
         <div style="
@@ -915,19 +934,26 @@ function addMessageToDOM(message) {
     const messageTime = new Date(message.created_at);
     const timeDiff = (now - messageTime) / (1000 * 60);
     
-    const messageAvatar = message.avatar || 'images/default.png';
+    // 使用 XSS 防护函数清理和转义用户输入
+    const messageAvatar = sanitizeUrl(message.avatar) || 'images/default.png';
+    const safeNickname = escapeHtml(message.nickname || message.username);
+    const safeUsername = escapeHtml(message.username);
+    
     let messageContent = `
         <div class="avatar-container">
             <img src="${messageAvatar}" alt="Avatar" class="avatar" onclick="openUserProfile(${message.user_id})">
         </div>
         <div class="message-content">
             <div class="message-header">
-                <span class="message-username">${message.nickname || message.username}</span>
+                <span class="message-username">${safeNickname}</span>
             </div>
     `;
     
     if (message.reply_info) {
-        const repliedContent = message.reply_info.content || '图片消息';
+        const safeReplyNickname = escapeHtml(message.reply_info.nickname || message.reply_info.username);
+        const safeReplyContent = escapeHtml(message.reply_info.content || '图片消息');
+        const truncatedReply = safeReplyContent.length > 30 ? safeReplyContent.substring(0, 30) + '...' : safeReplyContent;
+        
         messageContent += `<div class="message-reply" style="
             background-color: rgba(0, 113, 227, 0.05);
             border-left: 3px solid #0071e3;
@@ -936,42 +962,50 @@ function addMessageToDOM(message) {
             margin-bottom: 6px;
             font-size: 13px;
         ">
-            <span style="font-weight: bold; color: #0071e3;">@${message.reply_info.nickname || message.reply_info.username}</span>: ${repliedContent.length > 30 ? repliedContent.substring(0, 30) + '...' : repliedContent}
+            <span style="font-weight: bold; color: #0071e3;">@${safeReplyNickname}</span>: ${truncatedReply}
         </div>`;
     }
     
     if (message.content) {
-        messageContent += `<div class="message-text">${message.content}</div>`;
+        // 转义消息内容防止 XSS
+        const safeContent = escapeHtml(message.content);
+        messageContent += `<div class="message-text">${safeContent}</div>`;
     }
     
     if (message.image && !message.is_recalled) {
-        messageContent += `<img src="${message.image}" alt="Chat image" class="message-image" onclick="viewImage(this)">`;
+        const safeImageUrl = sanitizeUrl(message.image);
+        if (safeImageUrl) {
+            messageContent += `<img src="${safeImageUrl}" alt="Chat image" class="message-image" onclick="viewImage(this)">`;
+        }
     }
     
     if (message.voice && !message.is_recalled) {
-        const audioType = message.voice.endsWith('.ogg') ? 'audio/ogg' : 'audio/webm;codecs=opus';
-        messageContent += `<div class="message-voice bubble">
-            <div class="custom-audio-player" data-message-id="${message.id}">
-                <audio id="audio-${message.id}" class="voice-player" preload="metadata">
-                    <source src="${message.voice}" type="${audioType}">
-                    您的浏览器不支持音频播放
-                </audio>
-                <div class="audio-controls">
-                    <button class="play-btn" data-audio-id="${message.id}">
-                        <span class="play-icon">▶</span>
-                        <span class="pause-icon">⏸</span>
-                    </button>
-                    <div class="progress-container">
-                        <div class="progress-bar">
-                            <div class="progress-fill"></div>
+        const safeVoiceUrl = sanitizeUrl(message.voice);
+        if (safeVoiceUrl) {
+            const audioType = message.voice.endsWith('.ogg') ? 'audio/ogg' : 'audio/webm;codecs=opus';
+            messageContent += `<div class="message-voice bubble">
+                <div class="custom-audio-player" data-message-id="${message.id}">
+                    <audio id="audio-${message.id}" class="voice-player" preload="metadata">
+                        <source src="${safeVoiceUrl}" type="${audioType}">
+                        您的浏览器不支持音频播放
+                    </audio>
+                    <div class="audio-controls">
+                        <button class="play-btn" data-audio-id="${message.id}">
+                            <span class="play-icon">▶</span>
+                            <span class="pause-icon">⏸</span>
+                        </button>
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill"></div>
+                            </div>
+                        </div>
+                        <div class="time-display">
+                            <span class="current-time">0:00</span>
                         </div>
                     </div>
-                    <div class="time-display">
-                        <span class="current-time">0:00</span>
-                    </div>
                 </div>
-            </div>
-        </div>`;
+            </div>`;
+        }
     }
     
     const actionButtons = [];
@@ -990,7 +1024,7 @@ function addMessageToDOM(message) {
     ">💬</button>`);
     
     if (isCurrentUser && timeDiff <= 2 && !message.is_recalled) {
-        actionButtons.push(`<button class="recall-btn" data-message-id="${message.id}" data-channel="${message.channel}" style="
+        actionButtons.push(`<button class="recall-btn" data-message-id="${message.id}" data-channel="${escapeHtml(message.channel)}" style="
             background: none;
             border: none;
             color: #ff3b30;
@@ -1158,19 +1192,28 @@ function openUserProfile(userId) {
     fetch(`/api/profile/${userId}`)
         .then(response => response.json())
         .then(user => {
+            // 使用 XSS 防护函数清理用户数据
+            const safeAvatar = sanitizeUrl(user.avatar) || 'images/default.png';
+            const safeNickname = escapeHtml(user.nickname || user.username);
+            const safeUsername = escapeHtml(user.username);
+            const safeBio = escapeHtml(user.bio || '这个人很懒，什么也没留下');
+            const safeEmail = escapeHtml(user.email || '未设置');
+            const safeGender = user.gender === 'male' ? '男' : user.gender === 'female' ? '女' : '其他';
+            const safeJoinDate = new Date(user.created_at).toLocaleDateString();
+            
             const modal = document.createElement('div');
             modal.className = 'user-profile-modal';
             modal.innerHTML = `
                 <div class="user-profile-content">
                     <button class="close-profile-btn">×</button>
-                    <img src="${user.avatar || 'images/default.png'}" alt="Avatar" class="profile-avatar">
-                    <h2>${user.nickname || user.username}</h2>
-                    <p class="profile-username">@${user.username}</p>
-                    <p class="profile-bio">${user.bio || '这个人很懒，什么也没留下'}</p>
+                    <img src="${safeAvatar}" alt="Avatar" class="profile-avatar">
+                    <h2>${safeNickname}</h2>
+                    <p class="profile-username">@${safeUsername}</p>
+                    <p class="profile-bio">${safeBio}</p>
                     <div class="profile-info">
-                        <p><strong>性别:</strong> ${user.gender === 'male' ? '男' : user.gender === 'female' ? '女' : '其他'}</p>
-                        <p><strong>邮箱:</strong> ${user.email || '未设置'}</p>
-                        <p><strong>加入时间:</strong> ${new Date(user.created_at).toLocaleDateString()}</p>
+                        <p><strong>性别:</strong> ${safeGender}</p>
+                        <p><strong>邮箱:</strong> ${safeEmail}</p>
+                        <p><strong>加入时间:</strong> ${safeJoinDate}</p>
                     </div>
                 </div>
             `;
